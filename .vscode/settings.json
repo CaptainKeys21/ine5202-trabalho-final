@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.ejs": "html",
+        "*.pgsql": "postgres",
+        "stdlib.h": "c",
+        "pthread.h": "c"
+    }
+}
