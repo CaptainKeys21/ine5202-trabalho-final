@@ -3,6 +3,9 @@
         "*.ejs": "html",
         "*.pgsql": "postgres",
         "stdlib.h": "c",
-        "pthread.h": "c"
+        "pthread.h": "c",
+        "variant": "c",
+        "ranges": "c",
+        "aeronave.h": "c"
     }
 }

@@ -3,29 +3,34 @@
 #include <stdlib.h>
 #include <string.h>
 
-char* gerar_setor_id(int index) {
+char* create_id(char prefix, int index) {
     if (index < 0) return NULL;
 
-    char buffer[32];
-    int pos = 0;
-
-    int n = index + 1;
-    while (n > 0) {
-        int rem = (n - 1) % 26;
-        buffer[pos++] = 'A' + rem;
-        n = (n - 1) / 26;
-    }
+    // Determina o número de dígitos do índice.
+    // Usamos snprintf para determinar o comprimento sem realmente escrever a string.
+    // O buffer temporário 'temp' precisa ser grande o suficiente para o número máximo de dígitos de 'int'.
+    char temp[32]; 
     
-    buffer[pos] = '\0';
+    // snprintf retorna o número de caracteres que SERIAM escritos (excluindo o '\0').
+    // Se index = 123, snprintf(temp, 32, "%d", 123) retorna 3.
+    int num_digits = snprintf(temp, 32, "%d", index);
 
-    for (int i = 0; i < pos / 2; i++) {
-        char tmp = buffer[i];
-        buffer[i] = buffer[pos - 1 - i];
-        buffer[pos - 1 - i] = tmp;
-    }
+    // Calcula o tamanho total necessário.
+    // O comprimento final da string será:
+    // 2 (para "{prefix}-") 
+    // + num_digits (para o valor do índice)
+    // + 1 (para o terminador nulo '\0')
+    int total_len = 2 + num_digits + 1; 
 
-    char* res = malloc(pos + 1);
-    strcpy(res, buffer);
+    // Aloca a memória exata.
+    char* res = (char*)malloc(total_len);
+    
+    if (res == NULL) return NULL; 
+
+    // Formata a string e retorna.
+    // Usamos o tamanho exato no snprintf para garantir que não haja estouro de buffer,
+    // embora `total_len` seja o tamanho exato da alocação.
+    snprintf(res, total_len, "%c-%d", (int)prefix, index);
 
     return res;
 }

@@ -1,4 +1,6 @@
-#include <setor.h>
+#include "setor.h"
+#include "aeronave.h"
+#include "controle.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,21 +9,58 @@
 #include <unistd.h>
 #include <time.h>
 
-typedef struct {
-    setor_t* setores;
-    size_t num_setores;
-    
-} controle_t;
-
-void* thread_controle(void* arg) {
-    controle_t* ctrl = (controle_t*)arg;
-    
-}
-
-int main() {
+int main(int argc, char** argv) {
     srand(time(NULL));
 
-    setor_t* setores;
+    if (argc < 3) {
+        fprintf(stderr, "Uso: %s <num_aeronaves> <num_setores>\n", argv[0]);
+        return 1;
+    }
+    
+    size_t num_aero = (size_t)atoi(argv[1]);
+    size_t num_set = (size_t)atoi(argv[2]);
 
-    init_setores(setores, 3);
+    controle_t ctrl_data;
+    init_controle(&ctrl_data, num_aero, num_set);
+
+    setor_t* setores = (setor_t*)malloc(num_set * sizeof(setor_t));
+    init_setores(setores, num_set, &ctrl_data);
+    
+    aeronave_t* aeronaves = (aeronave_t*)malloc(num_aero * sizeof(aeronave_t));
+    init_aeronaves(aeronaves, num_aero);
+    for (int i = 0; i < num_aero; i++) {
+        aeronaves[i].rota = criar_rota(setores, num_set, rand() % num_set + 1);
+    }
+
+    pthread_t aero_threads[num_aero];
+    // pthread_t ctrl_thread;
+    
+
+    for (int i = 0; i < num_aero; i++) {
+        int res = pthread_create(&aero_threads[i], NULL, aeronave_thread, (void *)&aeronaves[i]);
+
+        if (res != 0) {
+            fprintf(stderr, "Erro ao criar thread: %d\n", res);
+            return 1;
+        }
+    }
+
+
+    // int res = pthread_create(&ctrl_thread, NULL, ctrl_thread, (void *)&ctrl_data);
+    // if (res != 0) {
+    //     fprintf(stderr, "Erro ao criar thread de controle: %d\n", res);
+    // }
+
+
+    for (int i = 0; i < num_aero; i++) {
+        pthread_join(aero_threads[i], NULL);
+    }
+
+    // pthread_join(ctrl_thread, NULL);
+
+
+    // Liberação de Recursos
+    destroy_setores(setores, num_set);
+    destroy_aeronaves(aeronaves, num_aero);
+    destroy_controle(&ctrl_data);
 }

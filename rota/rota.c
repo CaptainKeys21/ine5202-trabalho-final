@@ -1,4 +1,4 @@
-#include <rota.h>
+#include "rota.h"
 
 rota_t criar_rota(setor_t* setores, size_t setores_len, size_t rota_len) {
     rota_t rota;
@@ -16,6 +16,7 @@ rota_t criar_rota(setor_t* setores, size_t setores_len, size_t rota_len) {
             rota.head = rota.tail = rota.curr = node;
         } else {
             rota.tail->next = node;
+            node->prev = rota.tail;
             rota.tail = node;
         }
     }
@@ -31,4 +32,13 @@ void destruir_rota(rota_t rota) {
         free(curr);
         curr = next;
     }
+}
+
+setor_t* rota_next_setor(rota_t *rota) {
+    if (rota->curr == NULL) return NULL;
+    
+    setor_t* setor = rota->curr->setor;
+    rota->curr = rota->curr->next;
+    
+    return setor;
 }
