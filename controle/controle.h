@@ -6,24 +6,39 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include <stdio.h>
 
+typedef struct setor setor_t;
 
 typedef struct controle {
     size_t num_aeronaves;
+
     size_t num_setores;
+    setor_t* setores; // Ponteiro para os setores gerenciados
     
     // Matrizes do Banqueiro (alocadas dinamicamente)
-    int **max;         
-    int **allocation;  
-    int **need;        
-    int *available;   // 1 para disponível, 0 para alocado
+    int** max;         
+    int** allocation;  
+    int** need;        
+    int* available;   // 1 para disponível, 0 para alocado
 
+    bool* finish; // Vetor auxiliar para o algoritmo de segurança e para finalização do controle
     pthread_mutex_t banker_lock; // Protege as matrizes do Banqueiro
+
+    pthread_cond_t new_request_cond; // Condição para novas solicitações
 } controle_t;
 
 void init_controle(controle_t* controle, size_t num_aeronaves, size_t num_setores);
 
 void destroy_controle(controle_t* controle);
+
+/**
+ * @brief Thread de controle do banqueiro
+ * 
+ * @param arg ponteiro para a struct controle_t
+ * @return void* 
+ */
+void* banqueiro_thread(void* arg);
 
 /**
  * @brief Algoritimo de segurança do banqueiro (Executado SOMENTE sob banker_lock)
@@ -53,5 +68,21 @@ bool setor_tenta_conceder_seguro(controle_t* ctrl, int aero_id, int setor_idx);
  * @param setor_idx 
  */
 void liberar_recurso_banqueiro(controle_t* ctrl, int aero_id, int setor_idx);
+
+/**
+ * @brief Verifica se ainda existe alguma aerothread viva
+ * 
+ * @param ctrl 
+ * @return true 
+ * @return false 
+ */
+bool existe_aerothread_alive(controle_t* ctrl);
+
+/**
+ * @brief Imprime o estado atual das matrizes do banqueiro
+ * 
+ * @param ctrl 
+ */
+void imprimir_estado_banqueiro(controle_t* ctrl);
 
 #endif

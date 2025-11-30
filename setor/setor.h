@@ -20,7 +20,6 @@ typedef struct controle controle_t;
  */
 typedef struct setor {
     char* id;
-    sem_t sem;
     pthread_mutex_t lock;
     aeronave_t* fila;
     size_t fila_len;

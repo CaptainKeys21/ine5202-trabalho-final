@@ -30,11 +30,21 @@ int main(int argc, char** argv) {
     init_aeronaves(aeronaves, num_aero);
     for (int i = 0; i < num_aero; i++) {
         aeronaves[i].rota = criar_rota(setores, num_set, rand() % num_set + 1);
+
+        for (rota_node_t* curr = aeronaves[i].rota.head; curr != NULL; curr = curr->next) {
+            ctrl_data.max[i][curr->setor->setor_index] = 1;
+            ctrl_data.need[i][curr->setor->setor_index] = 1;
+        }
     }
 
     pthread_t aero_threads[num_aero];
-    // pthread_t ctrl_thread;
-    
+    pthread_t ctrl_thread;
+
+    imprimir_estado_banqueiro(&ctrl_data);
+    int res = pthread_create(&ctrl_thread, NULL, banqueiro_thread, (void *)&ctrl_data);
+    if (res != 0) {
+        fprintf(stderr, "Erro ao criar thread de controle: %d\n", res);
+    }
 
     for (int i = 0; i < num_aero; i++) {
         int res = pthread_create(&aero_threads[i], NULL, aeronave_thread, (void *)&aeronaves[i]);
@@ -45,18 +55,11 @@ int main(int argc, char** argv) {
         }
     }
 
-
-    // int res = pthread_create(&ctrl_thread, NULL, ctrl_thread, (void *)&ctrl_data);
-    // if (res != 0) {
-    //     fprintf(stderr, "Erro ao criar thread de controle: %d\n", res);
-    // }
-
-
     for (int i = 0; i < num_aero; i++) {
         pthread_join(aero_threads[i], NULL);
     }
 
-    // pthread_join(ctrl_thread, NULL);
+    pthread_join(ctrl_thread, NULL);
 
 
     // Liberação de Recursos

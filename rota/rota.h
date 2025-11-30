@@ -14,7 +14,6 @@ typedef struct setor setor_t;
 typedef struct rota_node {
     setor_t* setor;
     struct rota_node* next;
-    struct rota_node* prev;
 } rota_node_t;
 
 /**

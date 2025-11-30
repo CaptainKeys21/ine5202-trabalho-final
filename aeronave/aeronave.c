@@ -14,7 +14,6 @@ void* aeronave_thread(void* arg) {
     
     // O loop continua enquanto houver um próximo setor na rota
     while ((setor_alvo = rota_next_setor(&aero->rota)) != NULL) {
-        
         // Solicita o próximo setor (Setor-Proxy)
         // A aeronave espera DENTRO desta função se for negada.
         setor_solicitar_entrada(setor_alvo, aero); 
@@ -23,20 +22,21 @@ void* aeronave_thread(void* arg) {
 
         if (setor_prev != NULL) {
             // Libera o setor anterior (Setor-Proxy)
-            setor_liberar_saida(setor_prev, aero); 
-            
             printf("Aeronave %s: SAINDO do Setor %s.\n", aero->id, setor_prev->id);
+            setor_liberar_saida(setor_prev, aero);
         }
         
         // Atualiza o setor anterior para o próximo ciclo
         setor_prev = setor_alvo;
-        
+
+        sair_fila(setor_alvo, aero);
         // Simulação de uso do recurso (Voo no setor)
         usar_setor(aero);
     }
     
     // Ao finalizar, libera o último setor caso exista
     if (setor_prev != NULL) {
+        printf("Aeronave %s: SAINDO do Setor %s.\n", aero->id, setor_prev->id);
         setor_liberar_saida(setor_prev, aero);
     }
 

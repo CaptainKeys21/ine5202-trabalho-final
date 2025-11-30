@@ -13,13 +13,12 @@ typedef struct rota rota_t;
  * @param id Identificação da nave
  * @param prioridade Prioridade da nave no setor, quanto maior mais prioridade
  * @param rota A rota que a nave deve percorrer
+ * @param aero_index O ID da aeronave na matriz do banqueiro
  */
 typedef struct aeronave {
     char* id;
     unsigned int prioridade;
     rota_t rota;
-
-    // O ID da aeronave na matriz do banqueiro (0 a N-1)
     int aero_index;
 } aeronave_t;
 
