@@ -7,10 +7,12 @@ void init_controle(controle_t* controle, size_t num_aeronaves, size_t num_setore
     controle->num_aeronaves = num_aeronaves;
     controle->num_setores = num_setores;
 
+    //controle->setores = NULL;   // Inicializa o ponteiro para setores como NULL
+    //controle->aeronaves = NULL; // Inicializa o ponteiro para aeronaves como NULL
+
     // Alocação dos vetores (Available e Finish)
     controle->available = (int *)calloc(num_setores, sizeof(int));
-    controle->finish = (bool *)calloc(num_aeronaves, sizeof(bool));
-    if (!controle->available || !controle->finish) return;
+    if (!controle->available) return;
     
     // Inicializa todos os recursos como disponíveis (1 instância por setor)
     for (size_t j = 0; j < num_setores; j++) {
@@ -52,7 +54,6 @@ void destroy_controle(controle_t* controle) {
 
     // 2. Liberação dos vetores
     free(controle->available);
-    // free(controle->setores); // Se você alocou setores, libere aqui
 
     // 3. Destruição do Mutex
     pthread_mutex_destroy(&controle->banker_lock);
@@ -62,16 +63,18 @@ void* banqueiro_thread(void* arg) {
     controle_t* ctrl = (controle_t*)arg;
 
     // Loop para monitorar as solicitações
-    while (true) {
+    while (existe_aerothread_alive(ctrl)) {
 
+        printf("Banqueiro aguardando novas solicitações...\n");
         pthread_mutex_lock(&ctrl->banker_lock);
+        printf("Banqueiro acordado para processar solicitações.\n");
         
         pthread_cond_wait(&ctrl->new_request_cond, &ctrl->banker_lock);
 
         for (size_t i = 0; i < ctrl->num_setores; i++) {
-            printf("Banqueiro verificando setor %zu... (fila_len: %zu)\n", i, ctrl->setores[i].fila_len);
             setor_t* setor = &ctrl->setores[i];
             pthread_mutex_lock(&setor->lock);
+            printf("Banqueiro verificando setor %zu... (fila_len: %zu)\n", i, ctrl->setores[i].fila_len);
 
             if (setor->fila_len > 0) {
                 aeronave_t* aeronave = &setor->fila[0];
@@ -98,6 +101,7 @@ bool is_safe(controle_t* ctrl) {
     
     // Inicialização
     for (size_t j = 0; j < ctrl->num_setores; j++) work[j] = ctrl->available[j];
+    for (size_t p = 0; p < ctrl->num_aeronaves; p++) finish[p] = false;
 
     // Busca por sequência segura
     while (count < ctrl->num_aeronaves) {
@@ -178,8 +182,18 @@ void liberar_recurso_banqueiro(controle_t* ctrl, int aero_id, int setor_idx) {
 }
 
 bool existe_aerothread_alive(controle_t* ctrl) {
+    if (ctrl == NULL) return false;
+    if (ctrl->aeronaves == NULL) {
+        printf("Aeronaves não inicializadas no controle!\n");
+        return false;
+    }
+
+
     for (size_t i = 0; i < ctrl->num_aeronaves; i++) {
-        if (!ctrl->finish[i]) {
+        pthread_mutex_lock(&ctrl->aeronaves[i].finished_lock);
+        bool finished = ctrl->aeronaves[i].finished;
+        pthread_mutex_unlock(&ctrl->aeronaves[i].finished_lock);
+        if (!finished) {
             printf("Aeronave %zu ainda está ativa.\n", i);
             return true;
         }

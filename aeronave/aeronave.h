@@ -14,12 +14,16 @@ typedef struct rota rota_t;
  * @param prioridade Prioridade da nave no setor, quanto maior mais prioridade
  * @param rota A rota que a nave deve percorrer
  * @param aero_index O ID da aeronave na matriz do banqueiro
+ * @param finished Indica se a aeronave já concluiu sua rota
+ * @param finished_lock Mutex para proteger o acesso à variável finished
  */
 typedef struct aeronave {
     char* id;
     unsigned int prioridade;
     rota_t rota;
     int aero_index;
+    bool finished;
+    pthread_mutex_t finished_lock;
 } aeronave_t;
 
 /**

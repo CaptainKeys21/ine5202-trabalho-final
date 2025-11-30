@@ -9,9 +9,11 @@
 #include <stdio.h>
 
 typedef struct setor setor_t;
+typedef struct aeronave aeronave_t;
 
 typedef struct controle {
     size_t num_aeronaves;
+    aeronave_t* aeronaves; // Ponteiro para as aeronaves gerenciadas
 
     size_t num_setores;
     setor_t* setores; // Ponteiro para os setores gerenciados
@@ -22,7 +24,6 @@ typedef struct controle {
     int** need;        
     int* available;   // 1 para disponível, 0 para alocado
 
-    bool* finish; // Vetor auxiliar para o algoritmo de segurança e para finalização do controle
     pthread_mutex_t banker_lock; // Protege as matrizes do Banqueiro
 
     pthread_cond_t new_request_cond; // Condição para novas solicitações

@@ -40,6 +40,9 @@ void* aeronave_thread(void* arg) {
         setor_liberar_saida(setor_prev, aero);
     }
 
+    pthread_mutex_lock(&aero->finished_lock);
+    aero->finished = true;
+    pthread_mutex_unlock(&aero->finished_lock);
     printf("Aeronave %s: Rota concluída e liberada.\n", aero->id);
     return NULL;
 
@@ -50,6 +53,8 @@ void init_aeronaves(aeronave_t* aeronaves, size_t aeronaves_len) {
         aeronaves[i].id = create_id('A',i);
         aeronaves[i].prioridade = rand() % 101;
         aeronaves[i].aero_index = i;
+        aeronaves[i].finished = false;
+        pthread_mutex_init(&aeronaves[i].finished_lock, NULL);
     }
 }
 
@@ -70,6 +75,7 @@ void destroy_aeronaves(aeronave_t* aeronaves, size_t aeronaves_len) {
 
         // Libera rota
         destruir_rota(aeronave->rota);
+        pthread_mutex_destroy(&aeronave->finished_lock);
     }
 
     // Liberar a memória do array principal

@@ -28,6 +28,7 @@ int main(int argc, char** argv) {
     
     aeronave_t* aeronaves = (aeronave_t*)malloc(num_aero * sizeof(aeronave_t));
     init_aeronaves(aeronaves, num_aero);
+
     for (int i = 0; i < num_aero; i++) {
         aeronaves[i].rota = criar_rota(setores, num_set, rand() % num_set + 1);
 
@@ -37,10 +38,12 @@ int main(int argc, char** argv) {
         }
     }
 
+    ctrl_data.aeronaves = aeronaves; // Registra o vetor de aeronaves no controle
+
     pthread_t aero_threads[num_aero];
     pthread_t ctrl_thread;
 
-    imprimir_estado_banqueiro(&ctrl_data);
+    //imprimir_estado_banqueiro(&ctrl_data);
     int res = pthread_create(&ctrl_thread, NULL, banqueiro_thread, (void *)&ctrl_data);
     if (res != 0) {
         fprintf(stderr, "Erro ao criar thread de controle: %d\n", res);

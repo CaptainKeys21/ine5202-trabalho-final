@@ -59,15 +59,6 @@ void destroy_setores(setor_t* setores, size_t setores_len) {
     free(setores);
 }
 
-bool aeronave_adquiriu_setor(setor_t* setor, aeronave_t* aeronave) {
-    pthread_mutex_lock(&setor->controle->banker_lock);
-
-    bool res = setor->controle->allocation[aeronave->aero_index][setor->setor_index] > 0;
-
-    pthread_mutex_unlock(&setor->controle->banker_lock);
-    return res;
-}
-
 void setor_solicitar_entrada(setor_t *setor, aeronave_t *aeronave) {
     // Coloca a aeronave na fila do setor (para controle de prioridade e visibilidade)
     // Usaremos a fila para esperar o Banqueiro se o estado for inseguro
@@ -85,7 +76,7 @@ void setor_solicitar_entrada(setor_t *setor, aeronave_t *aeronave) {
 
     printf("Aeronave %s esperando concessão do Banqueiro para setor %s...\n", aeronave->id, setor->id);
 
-    while (aeronave_adquiriu_setor(setor, aeronave) == false) {
+    while (setor->controle->allocation[aeronave->aero_index][setor->setor_index] <= 0) {
         // Espera até ser acordada quando o setor estiver disponível
         pthread_cond_wait(&setor->setor_disponivel_cond, &setor->lock);
     }
@@ -97,6 +88,7 @@ void setor_solicitar_entrada(setor_t *setor, aeronave_t *aeronave) {
 void setor_liberar_saida(setor_t *setor, aeronave_t *aeronave) {
     // 1. Bloqueia as matrizes do banqueiro para liberar o recurso
     pthread_mutex_lock(&setor->controle->banker_lock);
+    printf("Aeronave %s liberando setor %s...\n", aeronave->id, setor->id);
     
     // ** CHAMADA AO CORAÇÃO DO BANQUEIRO **
     liberar_recurso_banqueiro(setor->controle, aeronave->aero_index, setor->setor_index);
