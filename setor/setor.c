@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 199309L // importante para CLOCK_MONOTONIC em time.h
 #include "setor.h"
 #include "aeronave.h"
 #include "utils.h"
@@ -59,31 +60,42 @@ void destroy_setores(setor_t* setores, size_t setores_len) {
     free(setores);
 }
 
-void setor_solicitar_entrada(setor_t* setor_origem, setor_t* setor_destino, aeronave_t *aeronave) {
+void setor_solicitar_entrada(setor_t* setor, aeronave_t *aeronave) {
     // Coloca a aeronave na fila do setor (para controle de prioridade e visibilidade)
     // Usaremos a fila para esperar o Banqueiro se o estado for inseguro
     // Lógica de adicionar à fila (deve ser baseada em aeronave->prioridade)
-    entrar_fila(setor_destino, aeronave);
+    entrar_fila(setor, aeronave);
     
     // Sinaliza ao controle que há uma nova solicitação
-    pthread_mutex_lock(&setor_destino->controle->banker_lock);
-    pthread_cond_signal(&setor_destino->controle->new_request_cond);
-    pthread_mutex_unlock(&setor_destino->controle->banker_lock);
+    pthread_mutex_lock(&setor->controle->banker_lock);
+    pthread_cond_signal(&setor->controle->new_request_cond);
+    pthread_mutex_unlock(&setor->controle->banker_lock);
 
+    struct timespec tempo_inicio; // Inicio do tempo de espera
+    clock_gettime(CLOCK_MONOTONIC, &tempo_inicio);
     
-    pthread_mutex_lock(&setor_destino->lock);
+    pthread_mutex_lock(&setor->lock);
 
-    printf_timestamped("[AERONAVE %s] ESPERANDO concessão do BANQUEIRO para setor %s...\n", aeronave->id, setor_destino->id);
+    printf_timestamped("[AERONAVE %s] ESPERANDO concessão do BANQUEIRO para setor %s...\n", aeronave->id, setor->id);
 
-    while (setor_destino->controle->allocation[aeronave->aero_index][setor_destino->setor_index] <= 0) {
+    while (setor->controle->allocation[aeronave->aero_index][setor->setor_index] <= 0) {
         // Espera até ser acordada quando o setor estiver disponível
-        pthread_cond_wait(&setor_destino->setor_disponivel_cond, &setor_destino->lock);
+        pthread_cond_wait(&setor->setor_disponivel_cond, &setor->lock);
     }
+    // Remove a aeronave da fila agora que ela adquiriu o recurso
+    sair_fila(setor, aeronave);
 
-    sair_fila(setor_destino, aeronave);
+    struct timespec tempo_fim; // Fim do tempo de espera
+    clock_gettime(CLOCK_MONOTONIC, &tempo_fim);
+    
+    long long delta_ns = (tempo_fim.tv_sec - tempo_inicio.tv_sec) * 1000000000LL + (tempo_fim.tv_nsec - tempo_inicio.tv_nsec);
 
-    printf_timestamped("[AERONAVE %s] ADQUIRIU ACESSO ao setor %s.\n", aeronave->id, setor_destino->id);
-    pthread_mutex_unlock(&setor_destino->lock);
+    pthread_mutex_lock(&aeronave->lock);
+    aeronave->espera_total_ns += delta_ns;
+    pthread_mutex_unlock(&aeronave->lock);
+
+    printf_timestamped("[AERONAVE %s] ADQUIRIU ACESSO ao setor %s.\n", aeronave->id, setor->id);
+    pthread_mutex_unlock(&setor->lock);
 }
 
 void setor_liberar_saida(setor_t *setor, aeronave_t *aeronave) {
@@ -170,7 +182,7 @@ void sair_fila(setor_t* setor, aeronave_t* aeronave) {
 
     // 1. LOCALIZAÇÃO E OTIMIZAÇÃO: Usar strcmp e break
     for (size_t i = 0; i < setor->fila_len; i++) {
-        // CORREÇÃO CRÍTICA: Comparar o conteúdo das strings
+        // Comparar o conteúdo das strings
         if (strcmp(setor->fila[i].id, aeronave->id) == 0) { 
             aero_index = i;
             break; 

@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 199309L // importante para CLOCK_REALTIME em time.h
 #include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,6 +37,18 @@ void printf_timestamped(const char* format, ...) {
 
     // Imprimir o timestamp e a mensagem juntos
     printf("[%s] %s", timestamp_buffer, message_buffer);
+}
+
+struct timespec get_abs_timeout(int seconds) {
+    struct timespec ts;
+
+    // Obter o tempo atual
+    clock_gettime(CLOCK_REALTIME, &ts);
+
+    // Calcular o tempo absoluto para o timeout
+    ts.tv_sec += seconds;
+
+    return ts;
 }
 
 char* create_id(char prefix, int index) {

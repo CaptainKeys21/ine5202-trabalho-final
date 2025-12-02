@@ -17,4 +17,12 @@ char* create_id(char prefix, int index);
  */
 void printf_timestamped(const char* format, ...);
 
+/**
+ * @brief Obtém um tempo absoluto para timeout baseado no tempo atual + segundos fornecidos
+ * 
+ * @param seconds 
+ * @return struct timespec 
+ */
+struct timespec get_abs_timeout(int seconds);
+
 #endif

@@ -59,7 +59,7 @@ bool is_safe(controle_t* ctrl);
  * @return true 
  * @return false 
  */
-bool setor_tenta_conceder_seguro(controle_t* ctrl, int aero_id, int setor_idx);
+bool setor_tenta_conceder_seguro(controle_t* ctrl, int aero_idx, int setor_destino_idx, int setor_origem_idx);
 
 /**
  * @brief Libera o recurso alocado para a aeronave no setor

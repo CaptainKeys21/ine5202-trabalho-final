@@ -6,6 +6,9 @@
         "pthread.h": "c",
         "variant": "c",
         "ranges": "c",
-        "aeronave.h": "c"
+        "aeronave.h": "c",
+        "controle.h": "c",
+        "mutex": "c",
+        "shared_mutex": "c"
     }
 }

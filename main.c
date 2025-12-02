@@ -1,6 +1,7 @@
 #include "setor.h"
 #include "aeronave.h"
 #include "controle.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +20,8 @@ int main(int argc, char** argv) {
     
     size_t num_aero = (size_t)atoi(argv[1]);
     size_t num_set = (size_t)atoi(argv[2]);
+
+    printf("Iniciando simulação com %zu aeronaves e %zu setores...\n", num_aero, num_set);
 
     controle_t ctrl_data;
     init_controle(&ctrl_data, num_aero, num_set);
@@ -61,7 +64,15 @@ int main(int argc, char** argv) {
     }
 
     for (int i = 0; i < num_aero; i++) {
-        pthread_join(aero_threads[i], NULL);
+        resultado_aeronave_t* resultado;
+        pthread_join(aero_threads[i], (void**)&resultado);
+
+        if (resultado != NULL) {
+            printf_timestamped("[RESULTADO] Aeronave %s - Média de Espera: %.2f ms\n", resultado->id, resultado->media_espera_ms);
+            free(resultado);
+        } else {
+            printf_timestamped("[RESULTADO] Aeronave %s - Erro ao obter resultado.\n", aeronaves[i].id);
+        }
     }
 
     pthread_join(ctrl_thread, NULL);

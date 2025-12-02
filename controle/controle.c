@@ -1,3 +1,4 @@
+#include <errno.h> // para ETIMEDOUT
 #include "controle.h"
 #include "aeronave.h"
 #include "utils.h"
@@ -69,8 +70,13 @@ void* banqueiro_thread(void* arg) {
 
         printf_timestamped("[BANQUEIRO] Aguardando novas solicitações...\n");
         pthread_mutex_lock(&ctrl->banker_lock);
-        
-        pthread_cond_wait(&ctrl->new_request_cond, &ctrl->banker_lock);
+
+        struct timespec ts = get_abs_timeout(5);
+        int wait_res = pthread_cond_timedwait(&ctrl->new_request_cond, &ctrl->banker_lock, &ts);
+        if (wait_res == ETIMEDOUT) {
+            printf_timestamped("[BANQUEIRO] Timeout de espera atingido. Verificando novamente...\n");
+        }
+
         printf_timestamped("[BANQUEIRO] Acordado para processar solicitações.\n");
         for (size_t i = 0; i < ctrl->num_setores; i++) {
             setor_t* setor = &ctrl->setores[i];
@@ -78,10 +84,13 @@ void* banqueiro_thread(void* arg) {
             printf_timestamped("[BANQUEIRO] Verificando setor %zu... (fila_len: %zu)\n", i, ctrl->setores[i].fila_len);
             if (setor->fila_len > 0) {
                 aeronave_t* aeronave = &setor->fila[0];
-                if (setor_tenta_conceder_seguro(ctrl, aeronave->aero_index, setor->setor_index)) {
+                pthread_mutex_lock(&aeronave->lock);
+                int setor_origem_idx = aeronave->current_setor ? aeronave->current_setor->setor_index : -1;
+                if (setor_tenta_conceder_seguro(ctrl, aeronave->aero_index, setor->setor_index, setor_origem_idx)) {
                     printf_timestamped("[BANQUEIRO] Concedeu setor %s para aeronave %s.\n", setor->id, aeronave->id);
                     pthread_cond_broadcast(&setor->setor_disponivel_cond);
                 }
+                pthread_mutex_unlock(&aeronave->lock);
             }
 
             pthread_mutex_unlock(&setor->lock);
@@ -126,31 +135,38 @@ bool is_safe(controle_t* ctrl) {
                 }
             }
         }
-        if (found == false && count < ctrl->num_aeronaves) return false;
+        // Se nenhum processo foi encontrado nesta iteração, o sistema não está em um estado seguro
+        if (found == false && count < ctrl->num_aeronaves){
+            for (size_t i = 0; i < ctrl->num_setores; i++) {
+                printf(" %d", work[i]);
+            }
+            printf("\n");
+            imprimir_estado_banqueiro(ctrl);
+            return false;
+        }
     }
     return true;
 }
 
-// --- Funções de Decisão do Banqueiro (Chamadas pelo Setor) ---
-
 // Tenta a alocação provisória e verifica a segurança
-bool setor_tenta_conceder_seguro(controle_t* ctrl, int aero_id, int setor_idx) {
-    printf("Banqueiro: Tentando conceder setor %d para aeronave %d...\n", setor_idx, aero_id);
+bool setor_tenta_conceder_seguro(controle_t* ctrl, int aero_idx, int setor_destino_idx, int setor_origem_idx) {
+    printf_timestamped("[BANQUEIRO] Tentando conceder setor %d para aeronave %d...\n", setor_destino_idx, aero_idx);
     bool concedido = false;
 
-    //imprimir_estado_banqueiro(ctrl);
-    
-    // // 1. ADQUIRIR LOCK GLOBAL
-    // pthread_mutex_lock(&ctrl->banker_lock);
-    // printf("Banqueiro: Lock adquirido para aeronave %d e setor %d.\n", aero_id, setor_idx);
 
-    // 2. Checagem rápida de necessidade e disponibilidade
-    if (ctrl->need[aero_id][setor_idx] > 0 && ctrl->available[setor_idx] >= 1) {
+    // Checagem rápida de necessidade e disponibilidade
+    if (ctrl->need[aero_idx][setor_destino_idx] > 0 && ctrl->available[setor_destino_idx] >= 1) {
+
+        // Libera o recurso do setor de origem, se aplicável
+        if (setor_origem_idx != -1) {
+            ctrl->available[setor_origem_idx] += 1;
+            ctrl->allocation[aero_idx][setor_origem_idx] -= 1;
+        }
         
         // 3. Simular a alocação (temporariamente, na memória do ctrl)
-        ctrl->available[setor_idx] -= 1;
-        ctrl->allocation[aero_id][setor_idx] += 1;
-        ctrl->need[aero_id][setor_idx] -= 1;
+        ctrl->available[setor_destino_idx] -= 1;
+        ctrl->allocation[aero_idx][setor_destino_idx] += 1;
+        ctrl->need[aero_idx][setor_destino_idx] -= 1;
 
         // 4. Executar a checagem de segurança (is_safe)
         if (is_safe(ctrl)) {
@@ -158,14 +174,16 @@ bool setor_tenta_conceder_seguro(controle_t* ctrl, int aero_id, int setor_idx) {
             concedido = true;
         } else {
             // Estado é inseguro: Reverter a alocação
-            ctrl->available[setor_idx] += 1;
-            ctrl->allocation[aero_id][setor_idx] -= 1;
-            ctrl->need[aero_id][setor_idx] += 1;
+            ctrl->available[setor_destino_idx] += 1;
+            ctrl->allocation[aero_idx][setor_destino_idx] -= 1;
+            ctrl->need[aero_idx][setor_destino_idx] += 1;
+
+            if (setor_origem_idx != -1) {
+                ctrl->available[setor_origem_idx] -= 1;
+                ctrl->allocation[aero_idx][setor_origem_idx] += 1;
+            }
         }
     }
-    
-    // // 5. LIBERAR LOCK GLOBAL
-    // pthread_mutex_unlock(&ctrl->banker_lock);
     
     return concedido;
 }
@@ -184,21 +202,15 @@ void liberar_recurso_banqueiro(controle_t* ctrl, int aero_id, int setor_idx) {
 bool existe_aerothread_alive(controle_t* ctrl) {
     if (ctrl == NULL) return false;
     if (ctrl->aeronaves == NULL) {
-        printf("Aeronaves não inicializadas no controle!\n");
         return false;
     }
 
 
     for (size_t i = 0; i < ctrl->num_aeronaves; i++) {
-        pthread_mutex_lock(&ctrl->aeronaves[i].finished_lock);
-        bool finished = ctrl->aeronaves[i].finished;
-        pthread_mutex_unlock(&ctrl->aeronaves[i].finished_lock);
-        if (!finished) {
-            printf("Aeronave %zu ainda está ativa.\n", i);
+        if (!ctrl->aeronaves[i].finished) {
             return true;
         }
     }
-    printf("Todas as aeronaves finalizaram suas rotinas.\n");
     return false;
 }
 

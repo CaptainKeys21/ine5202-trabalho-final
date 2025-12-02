@@ -14,8 +14,9 @@ typedef struct rota rota_t;
  * @param prioridade Prioridade da nave no setor, quanto maior mais prioridade
  * @param rota A rota que a nave deve percorrer
  * @param aero_index O ID da aeronave na matriz do banqueiro
+ * @param current_setor Ponteiro para o setor onde a aeronave está atualmente
  * @param finished Indica se a aeronave já concluiu sua rota
- * @param finished_lock Mutex para proteger o acesso à variável finished
+ * @param lock Mutex para proteger o acesso à variável finished e current_setor
  */
 typedef struct aeronave {
     char* id;
@@ -23,8 +24,21 @@ typedef struct aeronave {
     rota_t rota;
     int aero_index;
     bool finished;
-    pthread_mutex_t finished_lock;
+    long long espera_total_ns;
+    setor_t* current_setor;
+    pthread_mutex_t lock;
 } aeronave_t;
+
+/**
+ * @brief Representa o resultado da simulação para uma aeronave
+ * 
+ * @param id Identificação da nave
+ * @param media_espera_ms Média de tempo de espera em milissegundos
+ */
+typedef struct {
+    char* id;
+    double media_espera_ms;
+} resultado_aeronave_t;
 
 /**
  * @brief Inicializa os aeronaves em uma lista dinâmica

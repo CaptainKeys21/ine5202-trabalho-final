@@ -17,7 +17,7 @@ void* aeronave_thread(void* arg) {
         // Solicita o próximo setor
         // A aeronave espera DENTRO desta função se for negada.
         printf_timestamped("[AERONAVE %s]: SOLICITANDO ENTRADA no Setor %s. Prioridade: %u\n", aero->id, setor_alvo->id, aero->prioridade);
-        setor_solicitar_entrada(setor_prev, setor_alvo, aero); 
+        setor_solicitar_entrada(setor_alvo, aero); 
         printf_timestamped("[AERONAVE %s]: ENTRANDO no Setor %s. Prioridade: %u\n", aero->id, setor_alvo->id, aero->prioridade);
 
         if (setor_prev != NULL) {
@@ -29,6 +29,11 @@ void* aeronave_thread(void* arg) {
         // Atualiza o setor anterior para o próximo ciclo
         setor_prev = setor_alvo;
 
+        // Atualiza o setor atual da aeronave
+        pthread_mutex_lock(&aero->lock);
+        aero->current_setor = setor_alvo;
+        pthread_mutex_unlock(&aero->lock);
+
         // Simulação de uso do recurso (Voo no setor)
         usar_setor(aero);
     }
@@ -39,21 +44,32 @@ void* aeronave_thread(void* arg) {
         setor_liberar_saida(setor_prev, aero);
     }
 
-    pthread_mutex_lock(&aero->finished_lock);
+    pthread_mutex_lock(&aero->lock);
     aero->finished = true;
-    pthread_mutex_unlock(&aero->finished_lock);
     printf_timestamped("[AERONAVE %s] ROTA CONCLUIDA E LIBERADA.\n", aero->id);
-    return NULL;
+
+    resultado_aeronave_t* resultado = (resultado_aeronave_t*)malloc(sizeof(resultado_aeronave_t));
+    if (resultado == NULL) return NULL;
+    long long espera_ns = aero->espera_total_ns;
+    pthread_mutex_unlock(&aero->lock);
+
+    resultado->id = aero->id;
+    resultado->media_espera_ms = (double)espera_ns / (double)(aero->rota.len * 1000000LL);
+    
+    
+    return (void*)resultado;
 
 }
 
 void init_aeronaves(aeronave_t* aeronaves, size_t aeronaves_len) {
     for (size_t i = 0; i < aeronaves_len; i++) {
         aeronaves[i].id = create_id('A',i);
-        aeronaves[i].prioridade = rand() % 101;
+        aeronaves[i].prioridade = rand() % 1001;
         aeronaves[i].aero_index = i;
+        aeronaves[i].current_setor = NULL;
         aeronaves[i].finished = false;
-        pthread_mutex_init(&aeronaves[i].finished_lock, NULL);
+        aeronaves[i].espera_total_ns = 0;
+        pthread_mutex_init(&aeronaves[i].lock, NULL);
     }
 }
 
@@ -74,7 +90,7 @@ void destroy_aeronaves(aeronave_t* aeronaves, size_t aeronaves_len) {
 
         // Libera rota
         destruir_rota(aeronave->rota);
-        pthread_mutex_destroy(&aeronave->finished_lock);
+        pthread_mutex_destroy(&aeronave->lock);
     }
 
     // Liberar a memória do array principal
@@ -83,6 +99,6 @@ void destroy_aeronaves(aeronave_t* aeronaves, size_t aeronaves_len) {
 }
 
 void usar_setor(aeronave_t* aeronave) {
-    printf("Aeronave %s: Usando setor...\n", aeronave->id);
+    printf_timestamped("[AERONAVE %s]: USANDO SETOR...\n", aeronave->id);
     usleep(300000 + rand() % 500000);
 }
