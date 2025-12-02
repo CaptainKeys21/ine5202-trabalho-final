@@ -13,7 +13,6 @@ typedef struct controle controle_t;
  * @brief Representação de um setor que será usado por uma aeronave (recurso compartilhado)
  * 
  * @param id identificação unica do setor
- * @param sem semáforo do setor
  * @param lock lock do setor
  * @param fila fila de aeronaves para entrarem no setor
  * @param fila_len tamanho da fila de aeronaves
@@ -52,10 +51,11 @@ void destroy_setores(setor_t* setores, size_t setores_len);
 /**
  * @brief Set the or solicitar entrada object
  * 
- * @param setor 
+ * @param setor_origem 
+ * @param setor_destino 
  * @param aeronave 
  */
-void setor_solicitar_entrada(setor_t *setor, aeronave_t *aeronave);
+void setor_solicitar_entrada(setor_t* setor_origem, setor_t* setor_destino, aeronave_t* aeronave);
 
 /**
  * @brief Set the or liberar saida object

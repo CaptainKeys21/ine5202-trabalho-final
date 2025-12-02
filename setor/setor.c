@@ -59,36 +59,37 @@ void destroy_setores(setor_t* setores, size_t setores_len) {
     free(setores);
 }
 
-void setor_solicitar_entrada(setor_t *setor, aeronave_t *aeronave) {
+void setor_solicitar_entrada(setor_t* setor_origem, setor_t* setor_destino, aeronave_t *aeronave) {
     // Coloca a aeronave na fila do setor (para controle de prioridade e visibilidade)
     // Usaremos a fila para esperar o Banqueiro se o estado for inseguro
     // Lógica de adicionar à fila (deve ser baseada em aeronave->prioridade)
-    entrar_fila(setor, aeronave);
-
+    entrar_fila(setor_destino, aeronave);
     
     // Sinaliza ao controle que há uma nova solicitação
-    pthread_mutex_lock(&setor->controle->banker_lock);
-    pthread_cond_signal(&setor->controle->new_request_cond);
-    pthread_mutex_unlock(&setor->controle->banker_lock);
+    pthread_mutex_lock(&setor_destino->controle->banker_lock);
+    pthread_cond_signal(&setor_destino->controle->new_request_cond);
+    pthread_mutex_unlock(&setor_destino->controle->banker_lock);
 
     
-    pthread_mutex_lock(&setor->lock);
+    pthread_mutex_lock(&setor_destino->lock);
 
-    printf("Aeronave %s esperando concessão do Banqueiro para setor %s...\n", aeronave->id, setor->id);
+    printf_timestamped("[AERONAVE %s] ESPERANDO concessão do BANQUEIRO para setor %s...\n", aeronave->id, setor_destino->id);
 
-    while (setor->controle->allocation[aeronave->aero_index][setor->setor_index] <= 0) {
+    while (setor_destino->controle->allocation[aeronave->aero_index][setor_destino->setor_index] <= 0) {
         // Espera até ser acordada quando o setor estiver disponível
-        pthread_cond_wait(&setor->setor_disponivel_cond, &setor->lock);
+        pthread_cond_wait(&setor_destino->setor_disponivel_cond, &setor_destino->lock);
     }
 
-    printf("Aeronave %s adquiriu acesso ao setor %s.\n", aeronave->id, setor->id);
-    pthread_mutex_unlock(&setor->lock);
+    sair_fila(setor_destino, aeronave);
+
+    printf_timestamped("[AERONAVE %s] ADQUIRIU ACESSO ao setor %s.\n", aeronave->id, setor_destino->id);
+    pthread_mutex_unlock(&setor_destino->lock);
 }
 
 void setor_liberar_saida(setor_t *setor, aeronave_t *aeronave) {
     // 1. Bloqueia as matrizes do banqueiro para liberar o recurso
     pthread_mutex_lock(&setor->controle->banker_lock);
-    printf("Aeronave %s liberando setor %s...\n", aeronave->id, setor->id);
+    printf_timestamped("[AERONAVE %s] LIBERANDO setor %s...\n", aeronave->id, setor->id);
     
     // ** CHAMADA AO CORAÇÃO DO BANQUEIRO **
     liberar_recurso_banqueiro(setor->controle, aeronave->aero_index, setor->setor_index);
@@ -99,7 +100,7 @@ void setor_liberar_saida(setor_t *setor, aeronave_t *aeronave) {
 }
 
 void entrar_fila(setor_t* setor, aeronave_t* aeronave) {
-    printf("Tentando adicionar aeronave %s na fila do setor %s (Prioridade: %u)\n", 
+    printf_timestamped("[AERONAVE %s] TENTANDO ADICIONAR na fila de ESPERA do setor %s (Prioridade: %u)\n", 
            aeronave->id, setor->id, aeronave->prioridade);
     
     pthread_mutex_lock(&setor->lock);
@@ -155,7 +156,7 @@ void entrar_fila(setor_t* setor, aeronave_t* aeronave) {
 
     setor->fila_len = new_len;
     
-    printf("Nova aeronave %s adicionada a fila do setor %s no índice %zu (Prioridade: %u)\n", 
+    printf_timestamped("[AERONAVE %s] Nova aeronave ADICIONADA a fila de ESPERA do setor %s no índice %zu (Prioridade: %u)\n", 
            aeronave->id, setor->id, insert_index, aeronave->prioridade);
 
 
@@ -163,8 +164,7 @@ void entrar_fila(setor_t* setor, aeronave_t* aeronave) {
 }
 
 void sair_fila(setor_t* setor, aeronave_t* aeronave) {
-    printf("Tentando remover aeronave %s da fila do setor %s\n", aeronave->id, setor->id);
-    pthread_mutex_lock(&setor->lock);
+    printf_timestamped("[AERONAVE %s] TENTANDO REMOVER da fila de ESPERA do setor %s\n", aeronave->id, setor->id);
 
     size_t aero_index = -1;
 
@@ -179,7 +179,6 @@ void sair_fila(setor_t* setor, aeronave_t* aeronave) {
 
     if (aero_index == (size_t)-1) { // -1 é promovido a (size_t)-1
         printf("Aeronave %s não encontrada na fila do setor %s\n", aeronave->id, setor->id);
-        pthread_mutex_unlock(&setor->lock);
         return;
     }
 
@@ -200,7 +199,6 @@ void sair_fila(setor_t* setor, aeronave_t* aeronave) {
     // Se nova_fila é NULL E a fila NÃO esvaziou (new_len > 0), é um erro.
     if (nova_fila == NULL && new_len > 0) {
         printf("Erro de realloc ao remover aeronave %s. Memória original preservada.\n", aeronave->id);
-        pthread_mutex_unlock(&setor->lock);
         return;
     }
 
@@ -208,7 +206,7 @@ void sair_fila(setor_t* setor, aeronave_t* aeronave) {
     setor->fila = nova_fila; // Se new_len=0, nova_fila é NULL, e setor->fila aponta para NULL (correto).
     setor->fila_len = new_len;
     
-    printf("Aeronave %s removida da fila do setor %s (Tamanho: %zu)\n", aeronave->id, setor->id, setor->fila_len);
+    printf_timestamped("[AERONAVE %s] REMOVIDA da fila de ESPERA do setor %s (Tamanho: %zu)\n", aeronave->id, setor->id, setor->fila_len);
 
     pthread_mutex_unlock(&setor->lock);
 }

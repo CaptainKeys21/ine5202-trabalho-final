@@ -10,4 +10,11 @@
  */
 char* create_id(char prefix, int index);
 
+/**
+ * @brief Imprime uma mensagem no formato timestampado [HH:MM:SS.mmm] mensagem
+ * 
+ * @param format 
+ */
+void printf_timestamped(const char* format, ...);
+
 #endif

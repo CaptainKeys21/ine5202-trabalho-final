@@ -32,6 +32,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < num_aero; i++) {
         aeronaves[i].rota = criar_rota(setores, num_set, rand() % num_set + 1);
 
+        // Alocações para o banqueiro
         for (rota_node_t* curr = aeronaves[i].rota.head; curr != NULL; curr = curr->next) {
             ctrl_data.max[i][curr->setor->setor_index] = 1;
             ctrl_data.need[i][curr->setor->setor_index] = 1;
@@ -44,6 +45,7 @@ int main(int argc, char** argv) {
     pthread_t ctrl_thread;
 
     //imprimir_estado_banqueiro(&ctrl_data);
+    // A thread de controle do banqueiro, tem que ser criada antes das aeronaves (percebemos isso da pior maneira)
     int res = pthread_create(&ctrl_thread, NULL, banqueiro_thread, (void *)&ctrl_data);
     if (res != 0) {
         fprintf(stderr, "Erro ao criar thread de controle: %d\n", res);

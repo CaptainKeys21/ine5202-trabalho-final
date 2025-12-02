@@ -1,5 +1,6 @@
 #include "controle.h"
 #include "aeronave.h"
+#include "utils.h"
 
 void init_controle(controle_t* controle, size_t num_aeronaves, size_t num_setores) {
     if (num_aeronaves == 0 || num_setores == 0) return;
@@ -57,6 +58,7 @@ void destroy_controle(controle_t* controle) {
 
     // 3. Destruição do Mutex
     pthread_mutex_destroy(&controle->banker_lock);
+    pthread_cond_destroy(&controle->new_request_cond);
 }
 
 void* banqueiro_thread(void* arg) {
@@ -65,21 +67,19 @@ void* banqueiro_thread(void* arg) {
     // Loop para monitorar as solicitações
     while (existe_aerothread_alive(ctrl)) {
 
-        printf("Banqueiro aguardando novas solicitações...\n");
+        printf_timestamped("[BANQUEIRO] Aguardando novas solicitações...\n");
         pthread_mutex_lock(&ctrl->banker_lock);
-        printf("Banqueiro acordado para processar solicitações.\n");
         
         pthread_cond_wait(&ctrl->new_request_cond, &ctrl->banker_lock);
-
+        printf_timestamped("[BANQUEIRO] Acordado para processar solicitações.\n");
         for (size_t i = 0; i < ctrl->num_setores; i++) {
             setor_t* setor = &ctrl->setores[i];
             pthread_mutex_lock(&setor->lock);
-            printf("Banqueiro verificando setor %zu... (fila_len: %zu)\n", i, ctrl->setores[i].fila_len);
-
+            printf_timestamped("[BANQUEIRO] Verificando setor %zu... (fila_len: %zu)\n", i, ctrl->setores[i].fila_len);
             if (setor->fila_len > 0) {
                 aeronave_t* aeronave = &setor->fila[0];
                 if (setor_tenta_conceder_seguro(ctrl, aeronave->aero_index, setor->setor_index)) {
-                    printf("Banqueiro concedeu setor %s para aeronave %s.\n", setor->id, aeronave->id);
+                    printf_timestamped("[BANQUEIRO] Concedeu setor %s para aeronave %s.\n", setor->id, aeronave->id);
                     pthread_cond_broadcast(&setor->setor_disponivel_cond);
                 }
             }
