@@ -63,19 +63,20 @@ int main(int argc, char** argv) {
         }
     }
 
+    resultado_aeronave_t* resultados[num_aero];
     for (int i = 0; i < num_aero; i++) {
-        resultado_aeronave_t* resultado;
-        pthread_join(aero_threads[i], (void**)&resultado);
-
-        if (resultado != NULL) {
-            printf_timestamped("[RESULTADO] Aeronave %s - Média de Espera: %.2f ms\n", resultado->id, resultado->media_espera_ms);
-            free(resultado);
-        } else {
-            printf_timestamped("[RESULTADO] Aeronave %s - Erro ao obter resultado.\n", aeronaves[i].id);
-        }
+        pthread_join(aero_threads[i], (void**)&resultados[i]);
     }
 
     pthread_join(ctrl_thread, NULL);
+
+    printf("\n=== RESULTADOS DA SIMULAÇÃO ===\n");
+    double soma_total = 0;
+    for (int i = 0; i < num_aero; i++) {
+        soma_total += resultados[i]->media_espera;
+        printf("Aeronave %s - Média de espera: %.2f ms\n", resultados[i]->id, resultados[i]->media_espera);
+    }
+    printf("Média geral de espera: %.2f ms\n", (double)soma_total / (double)num_aero);
 
 
     // Liberação de Recursos

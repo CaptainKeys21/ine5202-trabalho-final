@@ -37,7 +37,7 @@ typedef struct aeronave {
  */
 typedef struct {
     char* id;
-    double media_espera_ms;
+    double media_espera;
 } resultado_aeronave_t;
 
 /**

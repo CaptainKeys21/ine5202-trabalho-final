@@ -45,10 +45,13 @@ void* banqueiro_thread(void* arg);
  * @brief Algoritimo de segurança do banqueiro (Executado SOMENTE sob banker_lock)
  * 
  * @param ctrl a struct do banqueiro
+ * @param temp_available vetor temporário de recursos disponíveis
+ * @param temp_allocation matriz temporária de alocações
+ * @param temp_need matriz temporária de necessidades
  * @return true 
  * @return false 
  */
-bool is_safe(controle_t* ctrl);
+bool is_safe(controle_t* ctrl, int temp_available[], int temp_allocation[][ctrl->num_setores], int temp_need[][ctrl->num_setores]);
 
 /**
  * @brief Set the or tenta conceder seguro object
@@ -71,6 +74,14 @@ bool setor_tenta_conceder_seguro(controle_t* ctrl, int aero_idx, int setor_desti
 void liberar_recurso_banqueiro(controle_t* ctrl, int aero_id, int setor_idx);
 
 /**
+ * @brief Realiza um rollback forçado para liberar recursos e evitar deadlock
+ * 
+ * @param ctrl 
+ * @param aeronave_solicitante 
+ */
+void realizar_rollback_banqueiro(controle_t* ctrl, aeronave_t* aeronave_solicitante);
+
+/**
  * @brief Verifica se ainda existe alguma aerothread viva
  * 
  * @param ctrl 
@@ -78,6 +89,27 @@ void liberar_recurso_banqueiro(controle_t* ctrl, int aero_id, int setor_idx);
  * @return false 
  */
 bool existe_aerothread_alive(controle_t* ctrl);
+
+/**
+ * @brief Força a liberação de um setor por uma aeronave, colocando-a de volta na fila
+ * 
+ * @param ctrl 
+ * @param aeronave 
+ * @param setor 
+ */
+void forcar_liberacao_setor(controle_t* ctrl, aeronave_t* aeronave, setor_t* setor);
+
+/**
+ * @brief Verifica se o sistema estaria em um estado seguro após a liberação total forçada de A_alocada e concessão para A_solicitante
+ * 
+ * @param ctrl 
+ * @param A_alocada Aeronave que irá liberar todos os seus recursos
+ * @param setor_solicitado Setor que A_solicitante deseja alocar
+ * @param A_solicitante Aeronave que deseja alocar o setor
+ * @return true 
+ * @return false
+ */
+bool is_safe_after_release_total(controle_t* ctrl, aeronave_t* A_alocada, setor_t* setor_solicitado, aeronave_t* A_solicitante);
 
 /**
  * @brief Imprime o estado atual das matrizes do banqueiro

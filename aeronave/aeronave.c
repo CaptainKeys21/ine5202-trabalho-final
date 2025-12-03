@@ -54,7 +54,7 @@ void* aeronave_thread(void* arg) {
     pthread_mutex_unlock(&aero->lock);
 
     resultado->id = aero->id;
-    resultado->media_espera_ms = (double)espera_ns / (double)(aero->rota.len * 1000000LL);
+    resultado->media_espera = (double)espera_ns / (double)(aero->rota.len * 1000000LL);
     
     
     return (void*)resultado;

@@ -64,7 +64,9 @@ void setor_solicitar_entrada(setor_t* setor, aeronave_t *aeronave) {
     // Coloca a aeronave na fila do setor (para controle de prioridade e visibilidade)
     // Usaremos a fila para esperar o Banqueiro se o estado for inseguro
     // Lógica de adicionar à fila (deve ser baseada em aeronave->prioridade)
+    pthread_mutex_lock(&setor->lock);
     entrar_fila(setor, aeronave);
+    pthread_mutex_unlock(&setor->lock);
     
     // Sinaliza ao controle que há uma nova solicitação
     pthread_mutex_lock(&setor->controle->banker_lock);
@@ -114,8 +116,6 @@ void setor_liberar_saida(setor_t *setor, aeronave_t *aeronave) {
 void entrar_fila(setor_t* setor, aeronave_t* aeronave) {
     printf_timestamped("[AERONAVE %s] TENTANDO ADICIONAR na fila de ESPERA do setor %s (Prioridade: %u)\n", 
            aeronave->id, setor->id, aeronave->prioridade);
-    
-    pthread_mutex_lock(&setor->lock);
     
     size_t new_len = setor->fila_len + 1;
     size_t insert_index = 0;
@@ -171,8 +171,6 @@ void entrar_fila(setor_t* setor, aeronave_t* aeronave) {
     printf_timestamped("[AERONAVE %s] Nova aeronave ADICIONADA a fila de ESPERA do setor %s no índice %zu (Prioridade: %u)\n", 
            aeronave->id, setor->id, insert_index, aeronave->prioridade);
 
-
-    pthread_mutex_unlock(&setor->lock);
 }
 
 void sair_fila(setor_t* setor, aeronave_t* aeronave) {

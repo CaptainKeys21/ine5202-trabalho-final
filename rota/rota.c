@@ -59,6 +59,8 @@ rota_t criar_rota(setor_t* setores, size_t setores_len, size_t rota_len) {
         }
     }
 
+    rota.len = rota_atual_len;
+
     return rota;
 }
 

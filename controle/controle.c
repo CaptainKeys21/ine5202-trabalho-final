@@ -1,4 +1,5 @@
 #include <errno.h> // para ETIMEDOUT
+#include <string.h>
 #include "controle.h"
 #include "aeronave.h"
 #include "utils.h"
@@ -81,16 +82,17 @@ void* banqueiro_thread(void* arg) {
         for (size_t i = 0; i < ctrl->num_setores; i++) {
             setor_t* setor = &ctrl->setores[i];
             pthread_mutex_lock(&setor->lock);
-            printf_timestamped("[BANQUEIRO] Verificando setor %zu... (fila_len: %zu)\n", i, ctrl->setores[i].fila_len);
+            //printf_timestamped("[BANQUEIRO] Verificando setor %zu... (fila_len: %zu)\n", i, ctrl->setores[i].fila_len);
             if (setor->fila_len > 0) {
                 aeronave_t* aeronave = &setor->fila[0];
-                pthread_mutex_lock(&aeronave->lock);
                 int setor_origem_idx = aeronave->current_setor ? aeronave->current_setor->setor_index : -1;
                 if (setor_tenta_conceder_seguro(ctrl, aeronave->aero_index, setor->setor_index, setor_origem_idx)) {
                     printf_timestamped("[BANQUEIRO] Concedeu setor %s para aeronave %s.\n", setor->id, aeronave->id);
                     pthread_cond_broadcast(&setor->setor_disponivel_cond);
+                } else {
+                    printf_timestamped("[BANQUEIRO] Realizando rollback para evitar deadlock.\n");
+                    realizar_rollback_banqueiro(ctrl, aeronave);
                 }
-                pthread_mutex_unlock(&aeronave->lock);
             }
 
             pthread_mutex_unlock(&setor->lock);
@@ -99,17 +101,19 @@ void* banqueiro_thread(void* arg) {
         pthread_mutex_unlock(&ctrl->banker_lock);
     }
 
+    printf_timestamped("[BANQUEIRO] Todas as aeronaves finalizaram. Encerrando thread do banqueiro.\n");
+
     return NULL;
 }
 
 // --- Algoritmo de Segurança (Executado SOMENTE sob banker_lock) ---
-bool is_safe(controle_t* ctrl) {
+bool is_safe(controle_t* ctrl, int temp_available[], int temp_allocation[][ctrl->num_setores], int temp_need[][ctrl->num_setores]) {
     int work[ctrl->num_setores];
     bool finish[ctrl->num_aeronaves];
     size_t count = 0;
     
     // Inicialização
-    for (size_t j = 0; j < ctrl->num_setores; j++) work[j] = ctrl->available[j];
+    for (size_t j = 0; j < ctrl->num_setores; j++) work[j] = temp_available[j];
     for (size_t p = 0; p < ctrl->num_aeronaves; p++) finish[p] = false;
 
     // Busca por sequência segura
@@ -120,14 +124,14 @@ bool is_safe(controle_t* ctrl) {
                 size_t j;
                 // Verifica se Need[p] <= Work
                 for (j = 0; j < ctrl->num_setores; j++) {
-                    if (ctrl->need[p][j] > work[j]) break;
+                    if (temp_need[p][j] > work[j]) break;
                 }
                 
                 // Se Need[p] <= Work para todos os recursos, então encontrou um processo p seguro
                 if (j == ctrl->num_setores) {
                     // Simula a conclusão: Work = Work + Allocation[p]
                     for (size_t k = 0; k < ctrl->num_setores; k++) {
-                        work[k] += ctrl->allocation[p][k];
+                        work[k] += temp_allocation[p][k];
                     }
                     finish[p] = true;
                     found = true;
@@ -151,41 +155,50 @@ bool is_safe(controle_t* ctrl) {
 // Tenta a alocação provisória e verifica a segurança
 bool setor_tenta_conceder_seguro(controle_t* ctrl, int aero_idx, int setor_destino_idx, int setor_origem_idx) {
     printf_timestamped("[BANQUEIRO] Tentando conceder setor %d para aeronave %d...\n", setor_destino_idx, aero_idx);
-    bool concedido = false;
-
-
     // Checagem rápida de necessidade e disponibilidade
-    if (ctrl->need[aero_idx][setor_destino_idx] > 0 && ctrl->available[setor_destino_idx] >= 1) {
+    if (ctrl->need[aero_idx][setor_destino_idx] <= 0 || ctrl->available[setor_destino_idx] < 1) return false;
 
-        // Libera o recurso do setor de origem, se aplicável
+    size_t num_aeronaves = ctrl->num_aeronaves;
+    size_t num_setores = ctrl->num_setores;
+
+    // --- 1. Criação das Matrizes Temporárias (Cópia do estado ATUAL) ---
+    int temp_available[num_setores];
+    int temp_allocation[num_aeronaves][num_setores];
+    int temp_need[num_aeronaves][num_setores];
+
+    memcpy(temp_available, ctrl->available, num_setores * sizeof(int));
+    for (size_t i = 0; i < num_aeronaves; i++) {
+        // Copia a linha [i] da matriz global para a linha [i] da matriz temporária local
+        memcpy(temp_allocation[i], ctrl->allocation[i], num_setores * sizeof(int));
+        memcpy(temp_need[i], ctrl->need[i], num_setores * sizeof(int));
+    }
+
+
+    // Libera o recurso do setor de origem, se aplicável
+    if (setor_origem_idx != -1) {
+        temp_available[setor_origem_idx] += 1;
+        temp_allocation[aero_idx][setor_origem_idx] -= 1;
+    }
+    
+    // 3. Simular a alocação (temporariamente, na memória do ctrl)
+    temp_available[setor_destino_idx] -= 1;
+    temp_allocation[aero_idx][setor_destino_idx] += 1;
+    temp_need[aero_idx][setor_destino_idx] -= 1;
+
+    // 4. Executar a checagem de segurança (is_safe)
+    bool res = is_safe(ctrl, temp_available, temp_allocation, temp_need);
+    if (res) {
+        // Se seguro, efetiva a alocação nas matrizes reais
         if (setor_origem_idx != -1) {
             ctrl->available[setor_origem_idx] += 1;
             ctrl->allocation[aero_idx][setor_origem_idx] -= 1;
         }
-        
-        // 3. Simular a alocação (temporariamente, na memória do ctrl)
         ctrl->available[setor_destino_idx] -= 1;
         ctrl->allocation[aero_idx][setor_destino_idx] += 1;
         ctrl->need[aero_idx][setor_destino_idx] -= 1;
-
-        // 4. Executar a checagem de segurança (is_safe)
-        if (is_safe(ctrl)) {
-            // Estado é seguro: manter a alocação e retornar TRUE
-            concedido = true;
-        } else {
-            // Estado é inseguro: Reverter a alocação
-            ctrl->available[setor_destino_idx] += 1;
-            ctrl->allocation[aero_idx][setor_destino_idx] -= 1;
-            ctrl->need[aero_idx][setor_destino_idx] += 1;
-
-            if (setor_origem_idx != -1) {
-                ctrl->available[setor_origem_idx] -= 1;
-                ctrl->allocation[aero_idx][setor_origem_idx] += 1;
-            }
-        }
     }
-    
-    return concedido;
+
+    return res;
 }
 
 // Libera o recurso e atualiza as matrizes
@@ -196,6 +209,107 @@ void liberar_recurso_banqueiro(controle_t* ctrl, int aero_id, int setor_idx) {
         ctrl->allocation[aero_id][setor_idx] = 0;
         // Restaura a necessidade (necessário se for usar o algoritmo de solicitação completo)
         //ctrl->need[aero_id][setor_idx] = ctrl->max[aero_id][setor_idx]; 
+    }
+}
+
+void realizar_rollback_banqueiro(controle_t* ctrl, aeronave_t* aeronave_solicitante) {
+    aeronave_t* alvo_rollback = NULL;
+    int prioridade_minima = 1001; // Variável para rastrear a prioridade mais baixa
+    
+    // Encontre a aeronave ativa de mais baixa prioridade que possui algum recurso
+    for (size_t p = 0; p < ctrl->num_aeronaves; p++) {
+        aeronave_t* aero_p = &ctrl->aeronaves[p];
+        
+        // Critérios: Deve ter menor prioridade E estar alocada
+        if (aero_p->prioridade < prioridade_minima && aero_p->current_setor != NULL) {
+            
+            // Simular se o estado se torna seguro após A-p liberar seu setor
+            if (is_safe_after_release_total(ctrl, aero_p, aero_p->current_setor, aeronave_solicitante)) {
+                 alvo_rollback = aero_p;
+                 prioridade_minima = aero_p->prioridade;
+            }
+        }
+    }
+
+    if (alvo_rollback != NULL) {
+        // Encontramos o alvo: Forçar liberação
+        setor_t* setor_liberado = alvo_rollback->current_setor;
+        forcar_liberacao_setor(ctrl, alvo_rollback, setor_liberado);
+        
+        printf_timestamped("[BANQUEIRO] Rollback Forçado: %s (Prioridade %d) liberou %s para resolver impasse.\n", 
+                           alvo_rollback->id, alvo_rollback->prioridade, setor_liberado->id);
+
+    }
+}
+
+void forcar_liberacao_setor(controle_t* ctrl, aeronave_t* aeronave, setor_t* setor) {
+    ctrl->allocation[aeronave->aero_index][setor->setor_index] -= 1;
+    ctrl->available[setor->setor_index] += 1;
+    entrar_fila(setor, aeronave);
+    aeronave->current_setor = NULL;
+}
+
+bool is_safe_after_release_total(controle_t* ctrl, aeronave_t* A_alocada, setor_t* setor_solicitado, aeronave_t* A_solicitante) {
+    size_t num_aeronaves = ctrl->num_aeronaves;
+    size_t num_setores = ctrl->num_setores;
+    
+    // --- 1. Criação das Matrizes Temporárias (Cópia do estado ATUAL) ---
+    int temp_available[num_setores];
+    int temp_allocation[num_aeronaves][num_setores];
+    int temp_need[num_aeronaves][num_setores];
+
+    memcpy(temp_available, ctrl->available, num_setores * sizeof(int));
+    for (size_t i = 0; i < num_aeronaves; i++) {
+        // Copia a linha [i] da matriz global para a linha [i] da matriz temporária local
+        memcpy(temp_allocation[i], ctrl->allocation[i], num_setores * sizeof(int));
+        memcpy(temp_need[i], ctrl->need[i], num_setores * sizeof(int));
+    }
+
+    // Identificadores
+    size_t p_alocada_id = A_alocada->aero_index;
+    size_t p_solicitante_id = A_solicitante->aero_index;
+    size_t r_solicitado_id = setor_solicitado->setor_index;
+
+    // --- 2. Simular a Liberação TOTAL Forçada (Rollback) ---
+    
+    // Itera sobre todos os setores que A_alocada detém
+    for (size_t r = 0; r < num_setores; r++) {
+        int recurso_alocado = temp_allocation[p_alocada_id][r];
+
+        if (recurso_alocado > 0) {
+            // Aumenta temporariamente o AVAILABLE com o recurso liberado
+            temp_available[r] += recurso_alocado;
+            
+            // Simula a remoção da alocação de A_alocada (Zera a alocação)
+            temp_allocation[p_alocada_id][r] = 0;
+            
+            // Recalcula o NEED temporário de A_alocada (Need = Max - 0)
+            temp_need[p_alocada_id][r] = ctrl->max[p_alocada_id][r];
+        }
+    }
+
+    // --- 3. Simular a Concessão para A_solicitante ---
+    
+    // Condição de Segurança: Checa se há recurso no AVAILABLE temporário (após a liberação)
+    if (temp_available[r_solicitado_id] >= 1) { 
+        
+        // Simula a concessão: Work = Work - 1
+        temp_available[r_solicitado_id] -= 1;
+        
+        // Simula a alocação: Allocation = Allocation + 1
+        temp_allocation[p_solicitante_id][r_solicitado_id] += 1;
+        
+        // Recalcula o NEED: Need = Max - Allocation
+        temp_need[p_solicitante_id][r_solicitado_id] = 
+            ctrl->max[p_solicitante_id][r_solicitado_id] - temp_allocation[p_solicitante_id][r_solicitado_id];
+
+        // --- 4. Checagem de Segurança Final ---
+        // Chama o Algoritmo de Segurança com as matrizes simuladas.
+        return is_safe(ctrl, temp_available, (int (*)[num_setores])temp_allocation, (int (*)[num_setores])temp_need);
+
+    } else {
+        // Mesmo após a liberação de recursos totais, o setor solicitado não ficou disponível.
+        return false;
     }
 }
 
