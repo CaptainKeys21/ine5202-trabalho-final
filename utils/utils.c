@@ -18,15 +18,10 @@ void printf_timestamped(const char* format, ...) {
     char timestamp_buffer[TIMESTAMP_SIZE];
     char message_buffer[BUFFER_SIZE];
     
-    // 1. Obter o tempo atual em segundos desde a época (epoch)
     time(&rawtime);
     
-    // 2. Converter para a estrutura de tempo local
     info = localtime(&rawtime);
 
-    // 3. Formatar o tempo em uma string (exemplo: YYYY-MM-DD HH:MM:SS)
-    // %Y: ano com século | %m: mês (01-12) | %d: dia do mês (01-31)
-    // %H: hora (00-23) | %M: minuto (00-59) | %S: segundo (00-60)
     strftime(timestamp_buffer, TIMESTAMP_SIZE, "%Y-%m-%d %H:%M:%S", info);
 
     // Formatar a mensagem original (como um printf normal)

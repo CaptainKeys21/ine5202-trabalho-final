@@ -72,5 +72,12 @@ void destroy_aeronaves(aeronave_t* aeronaves, size_t aeronaves_len);
  * @return void* 
  */
 void* aeronave_thread(void* arg);
-void usar_setor(aeronave_t* aeronave);
+
+/**
+ * @brief Simula o uso do setor pela aeronave
+ * 
+ * @param aeronave Ponteiro para a aeronave que está usando o setor
+ * @param setor Ponteiro para o setor que está sendo usado
+ */
+void usar_setor(aeronave_t* aeronave, setor_t* setor);
 #endif

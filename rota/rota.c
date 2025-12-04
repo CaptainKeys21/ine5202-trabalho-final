@@ -1,7 +1,5 @@
 #include "rota.h"
 
-// Assumindo que as estruturas rota_t e rota_node_t estão definidas.
-
 // Função auxiliar para checar se um setor (índice) já existe na rota.
 bool setor_existe_na_rota(rota_node_t* head, setor_t* novo_setor) {
     rota_node_t* current = head;

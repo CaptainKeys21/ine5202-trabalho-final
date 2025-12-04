@@ -16,9 +16,9 @@ void* aeronave_thread(void* arg) {
     while ((setor_alvo = rota_next_setor(&aero->rota)) != NULL) {
         // Solicita o próximo setor
         // A aeronave espera DENTRO desta função se for negada.
-        printf_timestamped("[AERONAVE %s]: SOLICITANDO ENTRADA no Setor %s. Prioridade: %u\n", aero->id, setor_alvo->id, aero->prioridade);
+        printf_timestamped("[AERONAVE %s] SOLICITANDO ENTRADA no Setor %s. Prioridade: %u\n", aero->id, setor_alvo->id, aero->prioridade);
         setor_solicitar_entrada(setor_alvo, aero); 
-        printf_timestamped("[AERONAVE %s]: ENTRANDO no Setor %s. Prioridade: %u\n", aero->id, setor_alvo->id, aero->prioridade);
+        printf_timestamped("[AERONAVE %s] ENTRANDO no Setor %s. Prioridade: %u\n", aero->id, setor_alvo->id, aero->prioridade);
 
         if (setor_prev != NULL) {
             // Libera o setor anterior
@@ -35,7 +35,7 @@ void* aeronave_thread(void* arg) {
         pthread_mutex_unlock(&aero->lock);
 
         // Simulação de uso do recurso (Voo no setor)
-        usar_setor(aero);
+        usar_setor(aero, setor_alvo);
     }
     
     // Ao finalizar, libera o último setor caso exista
@@ -98,7 +98,7 @@ void destroy_aeronaves(aeronave_t* aeronaves, size_t aeronaves_len) {
     free(aeronaves);
 }
 
-void usar_setor(aeronave_t* aeronave) {
-    printf_timestamped("[AERONAVE %s]: USANDO SETOR...\n", aeronave->id);
+void usar_setor(aeronave_t* aeronave, setor_t* setor) {
+    printf_timestamped("[AERONAVE %s] USANDO SETOR %s...\n", aeronave->id, setor->id);
     usleep(300000 + rand() % 500000);
 }

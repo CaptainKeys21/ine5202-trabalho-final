@@ -29,6 +29,14 @@ typedef struct controle {
     pthread_cond_t new_request_cond; // Condição para novas solicitações
 } controle_t;
 
+
+/**
+ * @brief Inicializa a estrutura de controle do banqueiro
+ * 
+ * @param controle Ponteiro para a estrutura de controle a ser inicializada
+ * @param num_aeronaves Número de aeronaves a serem gerenciadas
+ * @param num_setores Número de setores a serem gerenciados
+ */
 void init_controle(controle_t* controle, size_t num_aeronaves, size_t num_setores);
 
 void destroy_controle(controle_t* controle);
@@ -56,9 +64,10 @@ bool is_safe(controle_t* ctrl, int temp_available[], int temp_allocation[][ctrl-
 /**
  * @brief Set the or tenta conceder seguro object
  * 
- * @param ctrl 
- * @param aero_id 
- * @param setor_idx 
+ * @param ctrl ponteiro para a struct controle_t
+ * @param aero_idx aero_index da matriz do banqueiro
+ * @param setor_destino_idx setor_index da matriz do banqueiro
+ * @param setor_origem_idx setor_index da matriz do banqueiro
  * @return true 
  * @return false 
  */
@@ -67,55 +76,19 @@ bool setor_tenta_conceder_seguro(controle_t* ctrl, int aero_idx, int setor_desti
 /**
  * @brief Libera o recurso alocado para a aeronave no setor
  * 
- * @param ctrl 
- * @param aero_id 
- * @param setor_idx 
+ * @param ctrl ponteiro para a struct controle_t
+ * @param aero_id aero_index da matriz do banqueiro
+ * @param setor_idx setor_index da matriz do banqueiro
  */
 void liberar_recurso_banqueiro(controle_t* ctrl, int aero_id, int setor_idx);
 
 /**
- * @brief Realiza um rollback forçado para liberar recursos e evitar deadlock
- * 
- * @param ctrl 
- * @param aeronave_solicitante 
- */
-void realizar_rollback_banqueiro(controle_t* ctrl, aeronave_t* aeronave_solicitante);
-
-/**
  * @brief Verifica se ainda existe alguma aerothread viva
  * 
- * @param ctrl 
+ * @param ctrl ponteiro para a struct controle_t
  * @return true 
  * @return false 
  */
 bool existe_aerothread_alive(controle_t* ctrl);
-
-/**
- * @brief Força a liberação de um setor por uma aeronave, colocando-a de volta na fila
- * 
- * @param ctrl 
- * @param aeronave 
- * @param setor 
- */
-void forcar_liberacao_setor(controle_t* ctrl, aeronave_t* aeronave, setor_t* setor);
-
-/**
- * @brief Verifica se o sistema estaria em um estado seguro após a liberação total forçada de A_alocada e concessão para A_solicitante
- * 
- * @param ctrl 
- * @param A_alocada Aeronave que irá liberar todos os seus recursos
- * @param setor_solicitado Setor que A_solicitante deseja alocar
- * @param A_solicitante Aeronave que deseja alocar o setor
- * @return true 
- * @return false
- */
-bool is_safe_after_release_total(controle_t* ctrl, aeronave_t* A_alocada, setor_t* setor_solicitado, aeronave_t* A_solicitante);
-
-/**
- * @brief Imprime o estado atual das matrizes do banqueiro
- * 
- * @param ctrl 
- */
-void imprimir_estado_banqueiro(controle_t* ctrl);
 
 #endif
